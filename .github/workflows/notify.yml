@@ -19,8 +19,8 @@ jobs:
           | while read -r repo; do
               NAME=$(echo "$repo" | jq -r .full_name)
               URL=$(echo "$repo" | jq -r .html_url)
-              DESC=$(echo "$repo" | jq -r '.description // "No description"')
+              DESC="Junifer SGS just made a new repo!"
               curl -s -H "Content-Type: application/json" \
-                -d "{\"embeds\":[{\"title\":\"New repository: $NAME\",\"url\":\"$URL\",\"description\":\"$DESC\",\"color\":3066993}]}" \
+                -d "{\"embeds\":[{\"title\":\"New repository: $NAME\",\"url\":\"$URL\",\"description\":\"$DESC\",\"color\":16777215}]}" \
                 "$WEBHOOK"
             done
