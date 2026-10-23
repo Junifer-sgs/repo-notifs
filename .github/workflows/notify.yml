@@ -8,19 +8,36 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      - name: Restore notified list
+        uses: actions/cache@v4
+        with:
+          path: notified.txt
+          key: notified-${{ github.run_id }}
+          restore-keys: notified-
+
       - name: Check for new repos
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           USER_NAME: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # or a PAT to include private repos
         run: |
-          SINCE=$(date -u -d '16 minutes ago' +%Y-%m-%dT%H:%M:%SZ)
-          curl -s "https://api.github.com/users/$USER_NAME/repos?sort=created&direction=desc&per_page=10" \
-          | jq -c --arg since "$SINCE" '.[] | select(.created_at > $since)' \
+          touch notified.txt
+          SINCE=$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+
+          RESP=$(curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/users/$USER_NAME/repos?sort=created&direction=desc&per_page=10")
+
+          # fail loudly if the API returned an error instead of a list
+          echo "$RESP" | jq -e 'type == "array"' > /dev/null || { echo "$RESP"; exit 1; }
+
+          echo "$RESP" | jq -c --arg since "$SINCE" '.[] | select(.created_at > $since)' \
           | while read -r repo; do
               NAME=$(echo "$repo" | jq -r .full_name)
               URL=$(echo "$repo" | jq -r .html_url)
-              DESC="Junifer SGS just made a new repo!"
-              curl -s -H "Content-Type: application/json" \
-                -d "{\"embeds\":[{\"title\":\"New repository: $NAME\",\"url\":\"$URL\",\"description\":\"$DESC\",\"color\":16777215}]}" \
+              grep -qxF "$NAME" notified.txt && continue
+
+              curl -sS -H "Content-Type: application/json" \
+                -d "{\"embeds\":[{\"title\":\"New repository: $NAME\",\"url\":\"$URL\",\"description\":\"Junifer SGS just made a new repo!\",\"color\":16777215}]}" \
                 "$WEBHOOK"
+              echo "$NAME" >> notified.txt
             done
